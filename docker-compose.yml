@@ -1,0 +1,61 @@
+# ==============================================================================
+# 🛠️ [DevOps 실무 가이드] Docker Compose 오케스트레이션 설계 총정리
+# ==============================================================================
+# 📌 아무리 복잡한 프로젝트라도 지켜야 할 3대 오케스트레이션 원칙:
+# 1. 의존성 릴레이 순서 (depends_on):
+#    - DB `healthcheck` 준비 완료 -> 백엔드 구동 -> 백엔드 준비 완료 -> 프론트엔드 Nginx 구동
+# 2. 포트 노출 최적화 (Security Isolation):
+#    - ⚠️ 백엔드(5000번)나 DB(3306번) 포트는 외부에 직접 노출(`ports`)하지 마세요!
+#    - 외부로 노출하는 포트는 오직 프론트엔드 Nginx의 `80:80` (및 SSL `443:443`) 뿐이어야 보안상 완벽합니다.
+# 3. 환경변수 주입 (env_file):
+#    - `env_file: ./backend/.env` 구문을 통해 보안 비밀키를 코드 변경 없이 동적으로 삽입합니다.
+# ==============================================================================
+
+services:
+  # 📌 [서비스 1] 데이터베이스 (MySQL / PostgreSQL / MongoDB 스택 전환 가능)
+  db:
+    image: mysql:8.0
+    container_name: my-app-db
+    restart: always
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: myapp
+    volumes:
+      # 컨테이너 1회 최초 구동 시 자동 초기화 쿼리 실행
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # 컨테이너가 재부팅되어도 데이터를 영구 보존하기 위한 볼륨 마운트
+      - db_data:/var/lib/mysql
+    # DB 구동 완료 검증 (백엔드가 조기 접속하여 Connection Error 뿜는 것 방지)
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 📌 [서비스 2] 백엔드 API 서버 (Node / Spring / Python 등)
+  backend:
+    build: ./backend
+    container_name: my-app-backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 📌 [서비스 3] 프론트엔드 정적 웹 서버 & 리버스 프록시 (Nginx)
+  frontend:
+    build: ./frontend
+    container_name: my-app-frontend
+    restart: always
+    # 외부로 공개되는 유일한 게이트웨이 포트 (80번)
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+# 영구 데이터 보존 볼륨 정의
+volumes:
+  db_data:
+

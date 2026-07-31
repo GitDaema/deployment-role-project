@@ -1,0 +1,10 @@
+# 환경변수 비밀 파일 차단
+.env
+*.env
+backend/.env
+
+# Node 의존성 및 빌드 결과물 차단
+node_modules/
+dist/
+build/
+.DS_Store
