@@ -2,19 +2,25 @@ const express = require('express');
 const mysql = require('mysql2');
 
 const app = express();
+app.use(express.json());
 
 // ==============================================================================
-// 📌 [DevOps 체크포인트 1] 서버 포트 (PORT)
-// -> 백엔드가 열어두는 포트입니다. 
-// -> 나중에 Dockerfile의 `EXPOSE 5000` 및 docker-compose.yml, nginx.conf (proxy_pass http://backend:5000)에서 이 포트번호를 똑같이 써야 합니다.
+// 📌 [1단계 체크포인트] 기본 서버 포트 (PORT)
+// -> Nginx 및 Docker Compose 5000번 포트 연결 기준
 // ==============================================================================
 const PORT = process.env.PORT || 5000;
 
 // ==============================================================================
-// 📌 [DevOps 체크포인트 2] 데이터베이스 접속 정보 (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
-// -> 백엔드가 DB에 접속하기 위한 환경변수들입니다.
-// -> ⚠️ 필수 검수: DB_HOST가 'localhost'로 하드코딩되어 있다면 컨테이너 통신이 실패합니다.
-// -> 나중에 backend/.env 및 docker-compose.yml에서 DB_HOST=db (Docker 서비스명)로 주입해 주어야 합니다.
+// 📌 [2단계 체크포인트] 신규 필수 환경변수 (JWT_SECRET, GEMINI_API_KEY)
+// -> ⚠️ 필수 검수: 신규 기능(로그인, Gemini AI) 추가로 코드에 process.env.XXX가 새로 등장함!
+// -> 배포 담당자는 backend/.env 및 .env.example에 해당 키 이름이 정확히 기입되어 있는지 검수하고 주입해야 함.
+// ==============================================================================
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'default_key';
+
+// ==============================================================================
+// 📌 [1단계 체크포인트] DB 접속 호스트 (DB_HOST)
+// -> 로컬 개발용 'localhost'를 도커 내부 서비스명 'db'로 동적 바인딩
 // ==============================================================================
 const db = mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
@@ -23,11 +29,7 @@ const db = mysql.createConnection({
     database: process.env.DB_NAME || 'myapp'
 });
 
-// ==============================================================================
-// 📌 [DevOps 체크포인트 3] API 라우트 경로 (/api/users)
-// -> 프론트엔드가 호출하는 백엔드 API 프리픽스(/api/)입니다.
-// -> 나중에 frontend/nginx.conf의 `location /api/ { proxy_pass http://backend:5000/api/; }`로 전달됩니다.
-// ==============================================================================
+// [1단계 라우트] 기본 유저 목록 API (/api/users)
 app.get('/api/users', (req, res) => {
     db.query('SELECT * FROM users', (err, results) => {
         if (err) {
@@ -37,7 +39,23 @@ app.get('/api/users', (req, res) => {
     });
 });
 
+// [2단계 신규 라우트] 로그인 API (/api/login)
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+    res.json({ success: true, token: `fake-jwt-token-with-${JWT_SECRET}` });
+});
+
+// [2단계 신규 라우트] Gemini AI 챗봇 API (/api/chat)
+app.post('/api/chat', (req, res) => {
+    const { message } = req.body;
+    res.json({
+        success: true,
+        reply: `[Gemini AI 응답]: "${message}"에 대한 답변입니다. (Key: ${GEMINI_API_KEY.slice(0, 5)}***)`
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`Backend Server is running on port ${PORT}`);
 });
+
 
