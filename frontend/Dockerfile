@@ -1,17 +1,41 @@
 # ==============================================================================
-# 🛠️ [DevOps 실무 가이드] 프론트엔드 Dockerfile 선택 노하우
+# 프론트엔드 React SPA (Single Page Application) Multi-stage Dockerfile
 # ==============================================================================
-# 📌 프로젝트 성격에 따른 Dockerfile 선택 기준:
-# 1. Vanilla HTML/CSS/JS 또는 빌드본(dist/)만 있을 때 (현재 상태):
-#    - 아래처럼 Nginx 런타임 이미지에 정적 파일만 COPY 하는 단일 스테이지 구성.
-# 2. React / Vue / Vite 소스 코드 전체가 올려져 있을 때:
-#    - `templates/Dockerfile.react` 템플릿 사용!
-#    - Stage 1: Node.js에서 `npm run build` 진행 -> Stage 2: Nginx로 dist 복사.
+# [설계 목적]
+# 1. React/Vite 소스코드는 브라우저가 직접 실행할 수 없으므로 Node.js 환경에서 컴파일(빌드)이 필요합니다.
+# 2. 컴파일이 끝나면 생성된 정적 결과물(dist/ 폴더)만 경량 Nginx 웹 서버로 이전하여 메모리 사용량을 최소화합니다.
 # ==============================================================================
 
-FROM nginx:1.25-alpine
+# ------------------------------------------------------------------------------
+# 1단계: React 소스 정적 빌드 스테이지 (Build Stage)
+# ------------------------------------------------------------------------------
+# 1-1. 컴파일 환경 구축을 위해 Node.js Alpine 기본 이미지를 불러옵니다.
+FROM node:18-alpine AS builder
+
+# 1-2. 컨테이너 내부 작업 디렉터리를 /app 으로 지정합니다.
+WORKDIR /app
+
+# 1-3. 의존성 정의 파일만 먼저 복사하고 패키지를 설치합니다. (도커 레이어 캐싱 적용)
+COPY package*.json ./
+RUN npm install
+
+# 1-4. 소스 코드 전체를 복사한 후, Vite 소스를 정적 자원(dist/ 폴더)으로 컴파일합니다.
+COPY . .
+RUN npm run build
+
+# ------------------------------------------------------------------------------
+# 2단계: Nginx 정적 웹 호스팅 스테이지 (Production Stage)
+# ------------------------------------------------------------------------------
+# 2-1. 정적 파일 호스팅을 위해 최소 크기의 Nginx Alpine 이미지를 불러옵니다.
+FROM nginx:1.25-alpine AS runner
+
+# 2-2. 커스텀 리버스 프록시 및 SPA 라우팅 설정 파일(nginx.conf)을 반영합니다.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html /usr/share/nginx/html/index.html
+
+# 2-3. 1단계(builder)에서 컴파일이 완료된 /app/dist 폴더 내부의 HTML/JS/CSS 파일만 
+#      Nginx 기본 웹 문서 경로(/usr/share/nginx/html)로 복사합니다.
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# 2-4. HTTP 표준 포트인 80번 포트를 개방하고 Nginx 서버를 Foreground 모드로 구동합니다.
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
-

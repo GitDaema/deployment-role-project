@@ -16,7 +16,7 @@ export default function App() {
         // - [배포 담당자 조치]: FE 개발자에게 상대 경로인 '/api/chat'으로 수정 후 다시 푸시해 달라고 역요청(소통)합니다.
         // ==============================================================================
         try {
-            const res = await fetch('http://localhost:5000/api/chat', {
+            const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: input })
