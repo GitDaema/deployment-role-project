@@ -45,14 +45,33 @@ app.post('/api/login', (req, res) => {
     res.json({ success: true, token: `fake-jwt-token-with-${JWT_SECRET}` });
 });
 
-// [2단계 신규 라우트] Gemini AI 챗봇 API (/api/chat)
+
+// [3단계 신규 라우트] 대화 처리 후 DB(chat_logs)에 대화 저장 로직 추가
+// ==============================================================================
+// 📌 [3단계 DevOps 체크포인트: DB 연동 에러 검수 및 마이그레이션 순서]
+// -> 백엔드 코드에서 `INSERT INTO chat_logs` 테이블 쿼리를 실행합니다.
+// -> 만약 배포 담당자가 운영 DB에 마이그레이션(`CREATE TABLE chat_logs`)을 먼저 적용하지 않고
+//    백엔드만 배포하면, 챗봇 호출 시 500 Internal Server Error가 발생하게 됩니다.
+// -> 따라서 배포 순서는 반드시: [1. 운영 DB DDL 핫 주입] -> [2. 백엔드 무중단 재배포] 여야 합니다!
+// ==============================================================================
 app.post('/api/chat', (req, res) => {
     const { message } = req.body;
-    res.json({
-        success: true,
-        reply: `[Gemini AI 응답]: "${message}"에 대한 답변입니다. (Key: ${GEMINI_API_KEY.slice(0, 5)}***)`
+    const aiReply = `[Gemini AI 응답]: "${message}"에 대한 답변입니다. (Key: ${GEMINI_API_KEY.slice(0, 5)}***)`;
+    // chat_logs 테이블에 INSERT
+    const sql = 'INSERT INTO chat_logs (user_message, ai_reply) VALUES (?, ?)';
+    db.query(sql, [message, aiReply], (err, result) => {
+        if (err) {
+            console.error('DB 저장 실패:', err.message);
+            return res.status(500).json({ error: 'DB 대화 저장 에러: ' + err.message });
+        }
+        res.json({
+            success: true,
+            reply: aiReply,
+            logId: result.insertId
+        });
     });
 });
+
 
 app.listen(PORT, () => {
     console.log(`Backend Server is running on port ${PORT}`);
