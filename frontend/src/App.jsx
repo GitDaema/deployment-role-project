@@ -27,7 +27,7 @@ export default function App() {
 
     return (
         <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-            <h1>🤖 Gemini AI 챗봇 서비스 (3단계: DB 대화 보관)</h1>
+            <h1>🤖 Gemini AI 챗봇 서비스 (5단계: CI/CD 무중단 자동 배포 완료! 🎉)</h1>
             <div style={{ border: '1px solid #ddd', padding: '15px', borderRadius: '8px', marginBottom: '10px' }}>
                 {messages.map((m, idx) => (
                     <div key={idx} style={{ marginBottom: '10px' }}>
