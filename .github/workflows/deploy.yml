@@ -24,14 +24,14 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # EC2 프로젝트 폴더 이동
             cd ~/deployment-role-project
 
-            # 1. 최신 소스 코드 동기화
+            # EC2 내부 Git 로컬 변경점 강제 정돈 (무한 멈춤 완전 예방)
+            git reset --hard HEAD
             git checkout develop
             git pull origin develop
 
-            # 2. backend/.env 비밀 환경변수 파일 자동 업데이트
+            # backend/.env 비밀 파일 자동 동기화
             cat << EOF > backend/.env
             PORT=5000
             DB_HOST=db
@@ -42,8 +42,7 @@ jobs:
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
             EOF
 
-            # 3. 도커 서비스 부분 선택적 재빌드 구동 (무중단 배포)
+            # 도커 부분 재배포 및 dangling 이미지 정리
             docker compose up -d --build backend frontend
-
-            # 4. 배포 후 불필요한 미사용 도커 이미지 자동 정리
             docker image prune -f
+
