@@ -52,6 +52,10 @@ services:
     # 외부로 공개되는 유일한 게이트웨이 포트 (80번)
     ports:
       - "80:80"
+      - "443:443" # HTTPS 보안 포트 추가
+    volumes:
+      # EC2 호스트의 SSL 인증서 경로를 Nginx 내부로 읽기 전용(:ro) 마운트
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
 
