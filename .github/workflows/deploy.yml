@@ -1,0 +1,49 @@
+name: Mono-Repo Auto Deployment Pipeline
+
+# develop 브랜치에 코드 Push 발생 시 자동 배포 파이프라인 트리거
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  deploy:
+    name: Continuous Deployment to AWS EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. GitHub Actions 서버로 레포지토리 소스 가져오기
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. SSH를 통해 AWS EC2 서버에 접속하여 자동 배포 명령어 실행
+      - name: Execute Remote SSH Commands & Redeploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # EC2 프로젝트 폴더 이동
+            cd ~/deployment-role-project
+
+            # 1. 최신 소스 코드 동기화
+            git checkout develop
+            git pull origin develop
+
+            # 2. backend/.env 비밀 환경변수 파일 자동 업데이트
+            cat << EOF > backend/.env
+            PORT=5000
+            DB_HOST=db
+            DB_USER=root
+            DB_PASSWORD=rootpassword
+            DB_NAME=myapp
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            EOF
+
+            # 3. 도커 서비스 부분 선택적 재빌드 구동 (무중단 배포)
+            docker compose up -d --build backend frontend
+
+            # 4. 배포 후 불필요한 미사용 도커 이미지 자동 정리
+            docker image prune -f
